@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Sign in — BSC ops</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #001D39;
+    --deep: #0A4174;
+    --mid: #49769F;
+    --teal: #4E8EA2;
+    --muted: #6EA2B3;
+    --sky: #7BBDE8;
+    --ice: #BDD8E9;
+    --bg: #F5F8FB;
+    --risk: #C2410C;
+    --warn: #B45309;
+    --ok: #15803D;
+  }
+  html, body { background: var(--bg); color: var(--ink); font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: "tnum"; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .card { background: #fff; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,29,57,0.06); }
+  .pill { border-radius: 999px; }
+  .hairline { border: 1px solid rgba(189, 216, 233, 0.6); }
+  .btn-primary { background: var(--ink); color: #fff; border-radius: 12px; transition: background 0.15s; }
+  .btn-primary:hover { background: #00264a; }
+  .btn-primary:disabled { background: #B0BEC8; cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--ink); border: 1px solid rgba(0,29,57,0.12); border-radius: 12px; transition: border-color 0.15s; }
+  .btn-ghost:hover { border-color: var(--ink); }
+  .field {
+    width: 100%;
+    background: #fff;
+    border: 1px solid rgba(189, 216, 233, 0.8);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 14px;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .field:focus { border-color: var(--deep); box-shadow: 0 0 0 4px rgba(123,189,232,0.18); }
+  .field::placeholder { color: #94A3B0; }
+  .field-error { border-color: var(--risk); }
+  .field-error:focus { border-color: var(--risk); box-shadow: 0 0 0 4px rgba(194,65,12,0.15); }
+  .brand-panel {
+    background: linear-gradient(160deg, #001D39 0%, #0A4174 55%, #49769F 100%);
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+  }
+  .brand-panel::before {
+    content: "";
+    position: absolute;
+    inset: -40%;
+    background: radial-gradient(circle at 30% 20%, rgba(123,189,232,0.25), transparent 45%),
+                radial-gradient(circle at 80% 80%, rgba(189,216,233,0.18), transparent 50%);
+    pointer-events: none;
+  }
+  .grain {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+  .stat-line { border-top: 1px solid rgba(255,255,255,0.10); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { animation: spin 0.8s linear infinite; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="env,react">
+const { useState, useEffect } = React;
+
+const C = {
+  ink:'#001D39', deep:'#0A4174', mid:'#49769F', teal:'#4E8EA2',
+  muted:'#6EA2B3', sky:'#7BBDE8', ice:'#BDD8E9', bg:'#F5F8FB',
+  risk:'#C2410C', warn:'#B45309', ok:'#15803D',
+};
+
+const Icon = ({ size=18, sw=1.6, children }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {children}
+  </svg>
+);
+const I = {
+  Shirt: (p) => <Icon {...p}><path d="M4 7 8 3l4 2 4-2 4 4-3 3v11H7V10z"/></Icon>,
+  Mail:  (p) => <Icon {...p}><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></Icon>,
+  Lock:  (p) => <Icon {...p}><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></Icon>,
+  User:  (p) => <Icon {...p}><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></Icon>,
+  Eye:   (p) => <Icon {...p}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></Icon>,
+  EyeOff:(p) => <Icon {...p}><path d="M3 3l18 18"/><path d="M10.6 6.1A10 10 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3.3 4.1"/><path d="M6.6 6.6A17 17 0 0 0 2 12s3.5 6 10 6a10 10 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></Icon>,
+  Check: (p) => <Icon {...p}><path d="m5 12 5 5 9-11"/></Icon>,
+  Alert: (p) => <Icon {...p}><circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><circle cx="12" cy="16" r=".6"/></Icon>,
+  Arrow: (p) => <Icon {...p}><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></Icon>,
+  Sparkle:(p)=> <Icon {...p}><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></Icon>,
+  Google:({size=18})=>(
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.99.66-2.25 1.06-3.71 1.06-2.86 0-5.28-1.93-6.15-4.52H2.18v2.84A11 11 0 0 0 12 23Z"/>
+      <path fill="#FBBC05" d="M5.85 14.11A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.45.35-2.11V7.05H2.18A10.99 10.99 0 0 0 1 12c0 1.78.43 3.46 1.18 4.95l3.67-2.84Z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.07.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05L5.85 9.9C6.72 7.3 9.14 5.38 12 5.38Z"/>
+    </svg>
+  ),
+};
+
+function PasswordStrength({ value }) {
+  const score = (() => {
+    if (!value) return 0;
+    let s = 0;
+    if (value.length >= 8) s++;
+    if (/[A-Z]/.test(value) && /[a-z]/.test(value)) s++;
+    if (/\d/.test(value)) s++;
+    if (/[^A-Za-z0-9]/.test(value)) s++;
+    return s;
+  })();
+  const labels = ['Too short', 'Weak', 'Okay', 'Good', 'Strong'];
+  const colors = [C.muted, C.risk, C.warn, C.deep, C.ok];
+  return (
+    <div className="mt-2">
+      <div className="flex gap-1.5">
+        {[0,1,2,3].map(i => (
+          <div key={i} className="flex-1 h-1 rounded-full" style={{
+            background: i < score ? colors[score] : 'rgba(189,216,233,0.5)',
+            transition: 'background 0.2s'
+          }}/>
+        ))}
+      </div>
+      <div className="mt-1.5 text-[11px]" style={{ color: value ? colors[score] : C.muted }}>
+        {value ? labels[score] : '8+ characters, mix of letters and numbers'}
+      </div>
+    </div>
+  );
+}
+
+function BrandPanel() {
+  return (
+    <div className="brand-panel hidden lg:flex flex-col justify-between p-12" style={{ minHeight: '100vh' }}>
+      <div className="grain"/>
+      <div className="relative">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl inline-flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.10)', backdropFilter: 'blur(8px)' }}>
+            <I.Shirt size={20}/>
+          </div>
+          <div className="leading-tight">
+            <div className="text-[15px]" style={{ fontWeight: 500 }}>Bombay Shirt Company</div>
+            <div className="text-[12px]" style={{ color: 'rgba(255,255,255,0.65)' }}>Internal ops · India</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="relative">
+        <div className="text-[13px] mb-4 inline-flex items-center gap-2 pill px-3 py-1.5" style={{ background: 'rgba(255,255,255,0.10)', color: '#BDD8E9' }}>
+          <I.Sparkle size={14}/> Layer 1 · Monday pulse
+        </div>
+        <div style={{ fontSize: 38, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
+          Three things to know <span style={{ color: 'rgba(255,255,255,0.65)' }}>before standup.</span>
+        </div>
+        <p className="mt-5 text-[15px] max-w-[440px]" style={{ color: 'rgba(255,255,255,0.75)', lineHeight: 1.6 }}>
+          A daily pulse for the leadership team. KPIs, anomalies, and the orders moving through 25 stores — surfaced in one view, every morning.
+        </p>
+
+        <div className="mt-10 grid grid-cols-3 gap-6">
+          <Stat n="₹86.4 L" l="Revenue, last 7 days"/>
+          <Stat n="92.8%" l="First-time fit"/>
+          <Stat n="138" l="Alterations flagged"/>
+        </div>
+      </div>
+
+      <div className="relative stat-line pt-5 flex items-center justify-between text-[12px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+        <div>Shopify · Navision · FitSmart · WhatsApp Business</div>
+        <div className="inline-flex items-center gap-2">
+          <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: C.ok }}/>
+          All feeds healthy
+        </div>
+      </div>
+    </div>
+  );
+}
+function Stat({ n, l }) {
+  return (
+    <div>
+      <div className="tnum" style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em' }}>{n}</div>
+      <div className="text-[12px] mt-1" style={{ color: 'rgba(255,255,255,0.6)' }}>{l}</div>
+    </div>
+  );
+}
+
+function AuthForm() {
+  const [mode, setMode] = useState('signin'); // 'signin' | 'signup'
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [remember, setRemember] = useState(true);
+  const [agree, setAgree] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
+  const isSignup = mode === 'signup';
+
+  useEffect(() => { setErrors({}); }, [mode]);
+
+  const validate = () => {
+    const e = {};
+    if (isSignup && !name.trim()) e.name = 'Tell us what to call you';
+    if (!email.trim()) e.email = 'Enter your work email';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'That doesn’t look like a valid email';
+    if (!password) e.password = 'Enter your password';
+    else if (isSignup && password.length < 8) e.password = 'Use at least 8 characters';
+    if (isSignup && !agree) e.agree = 'Accept the terms to continue';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const submit = (ev) => {
+    ev.preventDefault();
+    if (!validate()) return;
+    setSubmitting(true);
+    setTimeout(() => {
+      try {
+        localStorage.setItem('bsc_user', JSON.stringify({
+          name: name || 'Akash Kanjilal',
+          email,
+          signedInAt: new Date().toISOString(),
+        }));
+      } catch (_) {}
+      window.location.href = 'Pulse.html';
+    }, 900);
+  };
+
+  const demoSignIn = () => {
+    setSubmitting(true);
+    try {
+      localStorage.setItem('bsc_user', JSON.stringify({
+        name: 'Akash Kanjilal', email: 'akash@bombayshirts.com', demo: true,
+      }));
+    } catch (_) {}
+    setTimeout(() => { window.location.href = 'Pulse.html'; }, 400);
+  };
+
+  return (
+    <div className="flex items-center justify-center p-6 sm:p-10" style={{ minHeight: '100vh' }}>
+      <div className="w-full max-w-[420px]">
+        <div className="lg:hidden flex items-center gap-2.5 mb-8">
+          <div className="w-9 h-9 rounded-xl inline-flex items-center justify-center text-white" style={{ background: C.ink }}>
+            <I.Shirt size={18}/>
+          </div>
+          <div className="leading-tight">
+            <div className="text-[14px]" style={{ color: C.ink, fontWeight: 500 }}>Bombay Shirt Company</div>
+            <div className="text-[11px]" style={{ color: C.muted }}>Internal ops · India</div>
+          </div>
+        </div>
+
+        <div className="text-[12px]" style={{ color: C.muted }}>
+          {isSignup ? 'Create your workspace' : 'Welcome back'}
+        </div>
+        <h1 className="mt-2" style={{ fontSize: 30, fontWeight: 600, letterSpacing: '-0.02em', color: C.ink, lineHeight: 1.2 }}>
+          {isSignup ? 'Set up your BSC account.' : 'Sign in to your pulse.'}
+        </h1>
+        <p className="mt-2 text-[14px]" style={{ color: C.muted, lineHeight: 1.55 }}>
+          {isSignup
+            ? 'For BSC leadership and ops. Use your work email.'
+            : 'Pick up where you left off — three things to know before standup.'}
+        </p>
+
+        <form onSubmit={submit} className="mt-8 flex flex-col gap-4" noValidate>
+          {isSignup && (
+            <Field
+              label="Full name"
+              icon={<I.User size={16}/>}
+              error={errors.name}
+            >
+              <input
+                type="text"
+                value={name}
+                onChange={e=>setName(e.target.value)}
+                placeholder="Akash Kanjilal"
+                className={"field pl-10 " + (errors.name?'field-error':'')}
+                autoComplete="name"
+              />
+            </Field>
+          )}
+
+          <Field
+            label="Work email"
+            icon={<I.Mail size={16}/>}
+            error={errors.email}
+          >
+            <input
+              type="email"
+              value={email}
+              onChange={e=>setEmail(e.target.value)}
+              placeholder="you@bombayshirts.com"
+              className={"field pl-10 " + (errors.email?'field-error':'')}
+              autoComplete="email"
+            />
+          </Field>
+
+          <Field
+            label="Password"
+            icon={<I.Lock size={16}/>}
+            error={errors.password}
+            right={
+              !isSignup && (
+                <a href="#" onClick={e=>{e.preventDefault(); alert('A password reset link would be sent.');}}
+                  className="text-[12px]" style={{ color: C.deep }}>
+                  Forgot password?
+                </a>
+              )
+            }
+          >
+            <div className="relative">
+              <input
+                type={showPw?'text':'password'}
+                value={password}
+                onChange={e=>setPassword(e.target.value)}
+                placeholder={isSignup?'At least 8 characters':'Enter your password'}
+                className={"field pl-10 pr-11 " + (errors.password?'field-error':'')}
+                autoComplete={isSignup?'new-password':'current-password'}
+              />
+              <button
+                type="button"
+                onClick={()=>setShowPw(s=>!s)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1"
+                style={{ color: C.muted }}
+                aria-label={showPw?'Hide password':'Show password'}
+              >
+                {showPw ? <I.EyeOff size={16}/> : <I.Eye size={16}/>}
+              </button>
+            </div>
+            {isSignup && <PasswordStrength value={password}/>}
+          </Field>
+
+          {isSignup ? (
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={agree}
+                onChange={e=>setAgree(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded"
+                style={{ accentColor: C.ink }}
+              />
+              <span className="text-[12px]" style={{ color: C.muted, lineHeight: 1.5 }}>
+                I agree to the <a className="underline" style={{ color: C.deep }}>terms</a> and <a className="underline" style={{ color: C.deep }}>privacy policy</a>.
+              </span>
+            </label>
+          ) : (
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={e=>setRemember(e.target.checked)}
+                className="w-4 h-4 rounded"
+                style={{ accentColor: C.ink }}
+              />
+              <span className="text-[13px]" style={{ color: C.ink }}>Keep me signed in for 14 days</span>
+            </label>
+          )}
+          {errors.agree && (
+            <div className="text-[12px] inline-flex items-center gap-1.5 -mt-2" style={{ color: C.risk }}>
+              <I.Alert size={13}/> {errors.agree}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="btn-primary pill px-5 py-3 text-[14px] inline-flex items-center justify-center gap-2 mt-2"
+            style={{ fontWeight: 500 }}
+          >
+            {submitting ? (
+              <>
+                <svg className="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                  <path d="M21 12a9 9 0 1 1-6.2-8.55" opacity="0.9"/>
+                </svg>
+                {isSignup ? 'Creating account…' : 'Signing in…'}
+              </>
+            ) : (
+              <>
+                {isSignup ? 'Create account' : 'Sign in'}
+                <I.Arrow size={15}/>
+              </>
+            )}
+          </button>
+        </form>
+
+        <div className="my-6 flex items-center gap-3 text-[11px]" style={{ color: C.muted }}>
+          <div className="flex-1 h-px" style={{ background: 'rgba(189,216,233,0.6)' }}/>
+          <span>or</span>
+          <div className="flex-1 h-px" style={{ background: 'rgba(189,216,233,0.6)' }}/>
+        </div>
+
+        <div className="flex flex-col gap-2.5">
+          <button
+            type="button"
+            onClick={()=>alert('Google SSO would be initiated here.')}
+            className="btn-ghost pill px-4 py-2.5 text-[14px] inline-flex items-center justify-center gap-2.5"
+          >
+            <I.Google size={16}/> Continue with Google
+          </button>
+          <button
+            type="button"
+            onClick={demoSignIn}
+            className="pill px-4 py-2.5 text-[13px] inline-flex items-center justify-center gap-1.5"
+            style={{ background: 'rgba(189,216,233,0.35)', color: C.deep }}
+          >
+            <I.Sparkle size={14}/> Preview as Akash (CEO)
+          </button>
+        </div>
+
+        <div className="mt-8 text-center text-[13px]" style={{ color: C.muted }}>
+          {isSignup ? 'Already have an account? ' : 'New to BSC ops? '}
+          <button
+            type="button"
+            onClick={()=>setMode(isSignup?'signin':'signup')}
+            style={{ color: C.ink, fontWeight: 500 }}
+            className="hover:underline"
+          >
+            {isSignup ? 'Sign in' : 'Create an account'}
+          </button>
+        </div>
+
+        <div className="mt-10 text-center text-[11px]" style={{ color: C.muted }}>
+          Protected by SSO · SOC 2 Type II · Data stays in India
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, icon, right, error, children }) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[12px]" style={{ color: C.ink, fontWeight: 500 }}>{label}</span>
+        {right}
+      </div>
+      <div className="relative">
+        {icon && (
+          <span className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: C.muted }}>
+            {icon}
+          </span>
+        )}
+        {children}
+      </div>
+      {error && (
+        <div className="text-[12px] inline-flex items-center gap-1.5" style={{ color: C.risk }}>
+          <I.Alert size={13}/> {error}
+        </div>
+      )}
+    </label>
+  );
+}
+
+function App() {
+  return (
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2" style={{ background: C.bg }}>
+      <BrandPanel/>
+      <AuthForm/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
