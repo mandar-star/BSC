@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Monday pulse — BSC ops</title>
+<meta name="viewport" content="width=1440" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #001D39;
+    --deep: #0A4174;
+    --mid: #49769F;
+    --teal: #4E8EA2;
+    --muted: #6EA2B3;
+    --sky: #7BBDE8;
+    --ice: #BDD8E9;
+    --bg: #F5F8FB;
+    --risk: #C2410C;
+    --warn: #B45309;
+    --ok: #15803D;
+    --gray: #6B7280;
+  }
+  html, body { background: var(--bg); color: var(--ink); font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: "tnum"; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .card { background: #fff; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,29,57,0.06); }
+  .softcard { background: rgba(189, 216, 233, 0.30); border-radius: 20px; }
+  .pill { border-radius: 999px; }
+  .hairline { border: 1px solid rgba(189, 216, 233, 0.5); }
+  .btn-primary { background: var(--ink); color: #fff; border-radius: 12px; }
+  .btn-primary:hover { background: #00264a; }
+  .btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--ink); border-radius: 12px; }
+  .sparkline path.stroke { stroke: var(--deep); stroke-width: 2; fill: none; }
+  .sparkline path.fill { fill: rgba(123, 189, 232, 0.18); stroke: none; }
+  .scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scrollbar::-webkit-scrollbar-thumb { background: rgba(110,162,179,0.3); border-radius: 999px; }
+  .pulse-dot { box-shadow: 0 0 0 0 rgba(194,65,12,0.55); animation: pulse 2.2s infinite; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(194,65,12,0.45); }
+    70% { box-shadow: 0 0 0 10px rgba(194,65,12,0); }
+    100% { box-shadow: 0 0 0 0 rgba(194,65,12,0); }
+  }
+  .tab-active { color: var(--ink); }
+  .tab-active::after {
+    content: ""; display:block; height: 2px; background: var(--ink);
+    border-radius: 2px; margin-top: 8px;
+  }
+  .ring-soft { box-shadow: 0 0 0 4px rgba(123,189,232,0.18); }
+  .focus-row:hover { background: rgba(189,216,233,0.18); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="env,react">
+const { useState, useMemo, useRef, useEffect } = React;
+
+const C = {
+  ink:'#001D39', deep:'#0A4174', mid:'#49769F', teal:'#4E8EA2',
+  muted:'#6EA2B3', sky:'#7BBDE8', ice:'#BDD8E9', bg:'#F5F8FB',
+  risk:'#C2410C', warn:'#B45309', ok:'#15803D', gray:'#6B7280'
+};
+
+// ---------- Inline Lucide-style icons (outline, 18-20px, currentColor) ----------
+const Icon = ({ d, size=18, sw=1.6, children }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {children || <path d={d}/>}
+  </svg>
+);
+const I = {
+  Search: (p) => <Icon {...p}><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></Icon>,
+  Bell:   (p) => <Icon {...p}><path d="M6 8a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9Z"/><path d="M10 21a2 2 0 0 0 4 0"/></Icon>,
+  Arrow:  (p) => <Icon {...p}><path d="M7 17 17 7"/><path d="M9 7h8v8"/></Icon>,
+  Down:   (p) => <Icon {...p}><path d="m6 9 6 6 6-6"/></Icon>,
+  Spark:  (p) => <Icon {...p}><path d="m12 3 2.4 5 5.6.8-4 3.9.9 5.6L12 16l-4.9 2.6.9-5.6-4-3.9 5.6-.8z"/></Icon>,
+  Calendar:(p)=> <Icon {...p}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></Icon>,
+  Cmd:    (p) => <Icon {...p}><path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3z"/></Icon>,
+  Pulse:  (p) => <Icon {...p}><path d="M3 12h4l3-8 4 16 3-8h4"/></Icon>,
+  Grid:   (p) => <Icon {...p}><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></Icon>,
+  Canvas: (p) => <Icon {...p}><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18M9 4v14"/></Icon>,
+  Scissor:(p) => <Icon {...p}><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="m8.1 8.1 12 12M20 4 9 15"/></Icon>,
+  Truck:  (p) => <Icon {...p}><path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></Icon>,
+  Crown:  (p) => <Icon {...p}><path d="M3 7l4 5 5-7 5 7 4-5v11H3z"/></Icon>,
+  Box:    (p) => <Icon {...p}><path d="M3 7 12 3l9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></Icon>,
+  User:   (p) => <Icon {...p}><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></Icon>,
+  Repeat: (p) => <Icon {...p}><path d="M17 3l4 4-4 4"/><path d="M21 7H8a5 5 0 0 0-5 5"/><path d="M7 21l-4-4 4-4"/><path d="M3 17h13a5 5 0 0 0 5-5"/></Icon>,
+  Alert:  (p) => <Icon {...p}><path d="M10.3 3.5 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.5a2 2 0 0 0-3.4 0Z"/><path d="M12 9v5"/><circle cx="12" cy="17.5" r=".6"/></Icon>,
+  Sparkle:(p) => <Icon {...p}><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></Icon>,
+  Chev:   (p) => <Icon {...p}><path d="m9 6 6 6-6 6"/></Icon>,
+  Plus:   (p) => <Icon {...p}><path d="M12 5v14M5 12h14"/></Icon>,
+  Dot:    (p) => <Icon {...p}><circle cx="12" cy="12" r="1.5"/></Icon>,
+  Snooze: (p) => <Icon {...p}><circle cx="12" cy="13" r="8"/><path d="M9 9h6l-6 8h6M12 5V3M5 5l1.5 1.5M19 5l-1.5 1.5"/></Icon>,
+  Send:   (p) => <Icon {...p}><path d="m4 12 17-8-6 18-3-7z"/></Icon>,
+  Mic:    (p) => <Icon {...p}><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></Icon>,
+  Filter: (p) => <Icon {...p}><path d="M3 5h18l-7 9v6l-4-2v-4z"/></Icon>,
+  Map:    (p) => <Icon {...p}><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></Icon>,
+  Shirt:  (p) => <Icon {...p}><path d="M4 7 8 3l4 2 4-2 4 4-3 3v11H7V10z"/></Icon>,
+};
+
+// ---------- Indian currency formatter ----------
+function inr(n, { compact=false } = {}) {
+  if (n == null) return '—';
+  const neg = n < 0; n = Math.abs(n);
+  if (compact && n >= 10000000) return (neg?'−':'') + '₹' + (n/10000000).toFixed(n>=1e8?1:2) + ' Cr';
+  if (compact && n >= 100000)   return (neg?'−':'') + '₹' + (n/100000).toFixed(n>=1e6?1:2) + ' L';
+  const s = Math.round(n).toString();
+  const lastThree = s.substring(s.length-3);
+  const other = s.substring(0, s.length-3);
+  const formatted = (other ? other.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," : "") + lastThree;
+  return (neg?'−':'') + '₹' + formatted;
+}
+
+// ---------- Synthetic data ----------
+const today = '12 May 2026';
+
+const KPIS = [
+  {
+    id:'rev',
+    label:'Revenue, last 7 days',
+    value: 8642000,            // ₹86.4 L
+    valueFmt: inr(8642000, {compact:true}),
+    delta: +12.4,
+    deltaLabel:'vs prior 7d',
+    target: 10000000,
+    targetPct: 86,
+    sub:'Pacing ₹37.0 Cr against ₹42 Cr quarter plan',
+    spark: [62,68,71,74,69,79,86].map((v,i)=>({i,v})),
+    accent: C.deep,
+  },
+  {
+    id:'fit',
+    label:'First-time fit rate',
+    value: 0.928,
+    valueFmt: '92.8%',
+    delta: -1.2,
+    deltaLabel:'vs trailing 30d',
+    target: 0.94,
+    targetPct: 92.8 / 94 * 100,
+    sub:'Below the 94% FitSmart claim — trouser-driven',
+    spark: [94.1,93.8,94.0,93.4,93.1,92.6,92.8].map((v,i)=>({i,v})),
+    accent: C.warn,
+    weak: true,
+  },
+  {
+    id:'otd',
+    label:'On-time delivery',
+    value: 0.871,
+    valueFmt: '87.1%',
+    delta: +2.1,
+    deltaLabel:'vs trailing 30d',
+    target: 0.90,
+    targetPct: 87.1/90*100,
+    sub:'Bandra & Khan Market dragging — Indiranagar leads',
+    spark: [82,84,83,85,86,87,87.1].map((v,i)=>({i,v})),
+    accent: C.deep,
+  },
+];
+
+const ANOMALY = {
+  title:'Trouser alterations spiked 38% this week',
+  body:'138 of 360 trouser orders triggered alterations against a 6.4% trailing baseline. Concentrated in waist-take-in on the slim-fit cotton block. Likely a pattern-grade drift at the Andheri unit after the 4 May batch.',
+  metric:'138 alterations',
+  delta:'+38% w/w',
+  impact:'₹4.12 L margin at risk',
+  detected:'Detected 11 May, 06:14',
+  confidence: 'high',
+  actions: ['Open alteration intelligence','Snooze for 24 h','Assign to ops'],
+};
+
+const STORES = [
+  { city:'Bandra',        rev: 612000, otd: 0.79, fit: 0.91, status:'warn' },
+  { city:'Khan Market',   rev: 548000, otd: 0.82, fit: 0.93, status:'warn' },
+  { city:'Indiranagar',   rev: 701000, otd: 0.96, fit: 0.95, status:'ok' },
+  { city:'Jubilee Hills', rev: 489000, otd: 0.91, fit: 0.94, status:'ok' },
+  { city:'Park Street',   rev: 318000, otd: 0.88, fit: 0.92, status:'ok' },
+  { city:'Linking Road',  rev: 405000, otd: 0.86, fit: 0.93, status:'ok' },
+  { city:'Camac Street',  rev: 277000, otd: 0.84, fit: 0.90, status:'warn' },
+  { city:'Phoenix, Pune', rev: 362000, otd: 0.90, fit: 0.94, status:'ok' },
+];
+
+const TOP_CUSTOMERS = [
+  { name:'Arjun Mehta',   city:'Bandra',       last:'07 May', ltv: 412500, orders: 38, status:'active'   },
+  { name:'Priya Sharma',  city:'Khan Market',  last:'09 May', ltv: 389200, orders: 31, status:'active'   },
+  { name:'Kavya Iyer',    city:'Indiranagar',  last:'02 May', ltv: 356700, orders: 29, status:'slipping' },
+  { name:'Rohan Kapoor',  city:'Jubilee Hills',last:'10 May', ltv: 341000, orders: 27, status:'active'   },
+  { name:'Ananya Reddy',  city:'Park Street',  last:'24 Apr', ltv: 312800, orders: 24, status:'slipping' },
+];
+
+const PIPELINE = [
+  { stage:'In design',     n: 412 },
+  { stage:'Cutting',       n: 286 },
+  { stage:'Stitching',     n: 351 },
+  { stage:'QC',            n:  94 },
+  { stage:'Ready to ship', n: 167 },
+  { stage:'In transit',    n: 218 },
+];
+
+const ACTIVITY = [
+  { t:'11 May, 18:42', who:'Anomaly engine', what:'Flagged trouser alteration spike, slim-fit cotton.' },
+  { t:'11 May, 14:10', who:'Neha (COO)',     what:'Approved holding the Andheri 11 May batch for re-grade.' },
+  { t:'11 May, 09:30', who:'Stylist desk',   what:'Repeat purchase nudges sent to 84 top-decile customers.' },
+  { t:'10 May, 21:05', who:'Inventory',      what:'Egyptian poplin (white) running low — 11 days of cover.' },
+  { t:'10 May, 12:18', who:'Akash (CEO)',    what:'Pinned the on-time delivery tile to the canvas.' },
+];
+
+// ---------- Small components ----------
+function Sparkline({ data, stroke=C.deep, fill='rgba(123,189,232,0.18)', h=44 }) {
+  const w = 160;
+  const min = Math.min(...data.map(d=>d.v)), max = Math.max(...data.map(d=>d.v));
+  const range = max - min || 1;
+  const pts = data.map((d,i)=>{
+    const x = (i/(data.length-1))*w;
+    const y = h - 4 - ((d.v - min)/range)*(h-10);
+    return [x,y];
+  });
+  const path = pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area = path + ` L ${w} ${h} L 0 ${h} Z`;
+  const last = pts[pts.length-1];
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none" className="block">
+      <path d={area} fill={fill} />
+      <path d={path} stroke={stroke} strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx={last[0]} cy={last[1]} r="3" fill={stroke}/>
+      <circle cx={last[0]} cy={last[1]} r="6" fill={stroke} opacity="0.18"/>
+    </svg>
+  );
+}
+
+function Delta({ v, weak }) {
+  const up = v >= 0;
+  const color = weak ? C.warn : (up ? C.ok : C.risk);
+  return (
+    <span className="inline-flex items-center gap-1 mono text-[12px] tnum" style={{ color }}>
+      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+        <path d={up?'M2 7 5 3 8 7':'M2 3 5 7 8 3'} stroke={color} strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+      {up?'+':''}{v.toFixed(1)}%
+    </span>
+  );
+}
+
+function ProgressRing({ pct=0, size=44, stroke=4, color=C.deep, track='#E6EEF6' }) {
+  const r = (size-stroke)/2;
+  const c = 2*Math.PI*r;
+  const off = c * (1 - Math.min(1, Math.max(0, pct/100)));
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={size/2} cy={size/2} r={r} stroke={track} strokeWidth={stroke} fill="none"/>
+      <circle cx={size/2} cy={size/2} r={r} stroke={color} strokeWidth={stroke} fill="none"
+        strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off}
+        transform={`rotate(-90 ${size/2} ${size/2})`}/>
+      <text x="50%" y="52%" textAnchor="middle" dominantBaseline="middle"
+        fontFamily="JetBrains Mono, ui-monospace, monospace" fontSize="10" fill={C.ink} fontWeight="500">
+        {Math.round(pct)}
+      </text>
+    </svg>
+  );
+}
+
+// ---------- KPI card ----------
+function KpiCard({ k, active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={"card text-left p-7 w-full transition-all " + (active?'ring-soft':'')}
+      style={{ minHeight: 232 }}
+    >
+      <div className="flex items-start justify-between">
+        <div className="text-[12px]" style={{color:C.muted}}>{k.label}</div>
+        <ProgressRing pct={k.targetPct} color={k.weak?C.warn:C.deep}/>
+      </div>
+      <div className="mt-4 flex items-baseline gap-3">
+        <div className="tnum" style={{ fontSize: 40, fontWeight: 600, lineHeight: 1, color: C.ink, letterSpacing:'-0.02em' }}>
+          {k.valueFmt}
+        </div>
+        <Delta v={k.delta} weak={k.weak}/>
+      </div>
+      <div className="mt-1 text-[12px]" style={{color:C.muted}}>{k.deltaLabel}</div>
+      <div className="mt-5 -mx-1">
+        <Sparkline data={k.spark} stroke={k.weak?C.warn:C.deep} fill={k.weak?'rgba(180,83,9,0.12)':'rgba(123,189,232,0.18)'}/>
+      </div>
+      <div className="mt-3 text-[13px]" style={{color:C.deep, lineHeight:1.5}}>{k.sub}</div>
+    </button>
+  );
+}
+
+// ---------- Anomaly hero card ----------
+function AnomalyCard() {
+  const [expanded, setExpanded] = useState(true);
+  return (
+    <div className="card p-7 relative overflow-hidden" style={{ minHeight: 232 }}>
+      <div className="absolute top-0 left-0 h-full w-1.5" style={{ background: C.risk }}/>
+      <div className="flex items-start justify-between gap-6">
+        <div className="flex items-start gap-3">
+          <span className="inline-flex w-2.5 h-2.5 rounded-full mt-2 pulse-dot" style={{ background: C.risk }}/>
+          <div>
+            <div className="flex items-center gap-2 text-[12px]" style={{color:C.risk}}>
+              <span className="pill px-2 py-[2px]" style={{background:'rgba(194,65,12,0.10)', color:C.risk}}>Anomaly</span>
+              <span style={{color:C.muted}}>·</span>
+              <span style={{color:C.muted}}>{ANOMALY.detected}</span>
+              <span style={{color:C.muted}}>·</span>
+              <span style={{color:C.muted}}>confidence: high</span>
+            </div>
+            <div className="mt-2" style={{ fontSize: 22, fontWeight: 500, color: C.ink, letterSpacing:'-0.01em', lineHeight:1.25 }}>
+              {ANOMALY.title}
+            </div>
+          </div>
+        </div>
+        <button className="pill hairline text-[12px] px-3 py-1 inline-flex items-center gap-1.5" style={{color:C.deep}}>
+          <I.Snooze size={14}/> Snooze 24 h
+        </button>
+      </div>
+      <p className="mt-3 text-[14px]" style={{ color: C.deep, lineHeight: 1.6, maxWidth: 640 }}>
+        {ANOMALY.body}
+      </p>
+      <div className="mt-5 flex items-center gap-6 flex-wrap">
+        <Stat label="Triggered" value={ANOMALY.metric}/>
+        <Divider/>
+        <Stat label="Trend" value={ANOMALY.delta} valueColor={C.risk}/>
+        <Divider/>
+        <Stat label="Margin at risk" value={ANOMALY.impact}/>
+        <Divider/>
+        <Stat label="Owner" value="Ops — Andheri"/>
+      </div>
+      <div className="mt-6 flex items-center gap-2 flex-wrap">
+        <button className="btn-primary pill px-4 py-2 text-[13px] inline-flex items-center gap-1.5">
+          Open alteration intelligence <I.Chev size={14}/>
+        </button>
+        <button className="btn-ghost pill px-4 py-2 text-[13px]">Assign to ops</button>
+        <button className="pill px-3 py-2 text-[13px]" style={{color:C.muted}}>Why this matters</button>
+      </div>
+    </div>
+  );
+}
+function Stat({ label, value, valueColor }) {
+  return (
+    <div>
+      <div className="text-[11px]" style={{color:C.muted}}>{label}</div>
+      <div className="mono tnum text-[14px] mt-0.5" style={{color: valueColor || C.ink, fontWeight:500}}>{value}</div>
+    </div>
+  );
+}
+function Divider() { return <div className="w-px h-7" style={{ background: 'rgba(189,216,233,0.7)' }}/>; }
+
+// ---------- Pipeline strip ----------
+function PipelineCard() {
+  const total = PIPELINE.reduce((s,p)=>s+p.n,0);
+  const max = Math.max(...PIPELINE.map(p=>p.n));
+  return (
+    <div className="card p-7">
+      <div className="flex items-baseline justify-between">
+        <div>
+          <div className="text-[12px]" style={{color:C.muted}}>Order pipeline, in motion now</div>
+          <div className="mt-1" style={{ fontSize: 22, fontWeight: 500, color: C.ink, letterSpacing:'-0.01em' }}>
+            <span className="tnum">{total.toLocaleString('en-IN')}</span> shirts moving through 6 stages
+          </div>
+        </div>
+        <button className="pill hairline text-[12px] px-3 py-1.5 inline-flex items-center gap-1.5" style={{color:C.deep}}>
+          Open order lifecycle <I.Arrow size={14}/>
+        </button>
+      </div>
+      <div className="mt-6 grid grid-cols-6 gap-3">
+        {PIPELINE.map((p,i)=>(
+          <div key={p.stage} className="softcard p-4">
+            <div className="text-[11px]" style={{color:C.deep}}>{p.stage}</div>
+            <div className="mt-1 tnum" style={{ fontSize: 24, fontWeight: 600, color: C.ink, letterSpacing:'-0.01em' }}>
+              {p.n.toLocaleString('en-IN')}
+            </div>
+            <div className="mt-3 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.7)' }}>
+              <div className="h-1.5 rounded-full" style={{ width: `${(p.n/max)*100}%`, background: i===3 ? C.warn : C.deep }}/>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Top customers ----------
+function CustomersCard() {
+  return (
+    <div className="card p-7 h-full">
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="text-[12px]" style={{color:C.muted}}>Top 10% — driving 40% of revenue</div>
+          <div className="mt-1" style={{ fontSize: 22, fontWeight: 500, color: C.ink, letterSpacing:'-0.01em' }}>
+            287 customers to watch
+          </div>
+        </div>
+        <button className="pill hairline text-[12px] px-3 py-1.5 inline-flex items-center gap-1.5" style={{color:C.deep}}>
+          Open panel <I.Arrow size={14}/>
+        </button>
+      </div>
+      <div className="mt-5 -mx-2">
+        <div className="grid grid-cols-12 px-2 pb-2 text-[11px]" style={{color:C.muted}}>
+          <div className="col-span-5">Customer</div>
+          <div className="col-span-3">Last order</div>
+          <div className="col-span-2 text-right">Orders</div>
+          <div className="col-span-2 text-right">LTV</div>
+        </div>
+        <div className="flex flex-col">
+          {TOP_CUSTOMERS.map(c => (
+            <div key={c.name} className="grid grid-cols-12 items-center px-2 py-2.5 rounded-xl focus-row">
+              <div className="col-span-5 flex items-center gap-3">
+                <Avatar name={c.name}/>
+                <div>
+                  <div className="text-[14px]" style={{color:C.ink}}>{c.name}</div>
+                  <div className="text-[12px]" style={{color:C.muted}}>{c.city}</div>
+                </div>
+              </div>
+              <div className="col-span-3 text-[13px]" style={{color:C.deep}}>
+                <div className="mono tnum">{c.last}</div>
+                {c.status==='slipping' && (
+                  <div className="text-[11px] mt-0.5" style={{color:C.warn}}>Quiet for {c.name==='Ananya Reddy'?'18':'10'} days</div>
+                )}
+              </div>
+              <div className="col-span-2 text-right mono tnum text-[13px]" style={{color:C.ink}}>{c.orders}</div>
+              <div className="col-span-2 text-right mono tnum text-[13px]" style={{color:C.ink}}>{inr(c.ltv)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+function Avatar({ name }) {
+  const initials = name.split(' ').map(s=>s[0]).slice(0,2).join('');
+  // deterministic blue tone by hash
+  const tones = [C.deep, C.mid, C.teal, C.muted];
+  const h = name.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+  const bg = tones[h % tones.length];
+  return (
+    <div className="w-9 h-9 rounded-full inline-flex items-center justify-center text-white text-[12px]" style={{ background: bg, fontWeight: 500 }}>
+      {initials}
+    </div>
+  );
+}
+
+// ---------- Store leaderboard ----------
+function StoresCard() {
+  const maxRev = Math.max(...STORES.map(s=>s.rev));
+  return (
+    <div className="card p-7">
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="text-[12px]" style={{color:C.muted}}>Stores, last 7 days</div>
+          <div className="mt-1" style={{ fontSize: 22, fontWeight: 500, color: C.ink, letterSpacing:'-0.01em' }}>
+            25 stores, 2 needing a nudge
+          </div>
+        </div>
+        <button className="pill hairline text-[12px] px-3 py-1.5" style={{color:C.deep}}>View all</button>
+      </div>
+      <div className="mt-5 grid grid-cols-2 gap-x-8 gap-y-3">
+        {STORES.map(s => (
+          <div key={s.city} className="flex items-center gap-3">
+            <div className="w-28 text-[13px]" style={{color:C.ink}}>{s.city}</div>
+            <div className="flex-1 h-2 rounded-full" style={{ background: 'rgba(189,216,233,0.5)'}}>
+              <div className="h-2 rounded-full" style={{ width: `${(s.rev/maxRev)*100}%`, background: s.status==='warn'?C.warn:C.deep }}/>
+            </div>
+            <div className="w-20 text-right mono tnum text-[12px]" style={{color:C.ink}}>{inr(s.rev, {compact:true})}</div>
+            <div className="w-14 text-right mono tnum text-[12px]" style={{color: s.otd<0.85?C.warn:C.muted}}>{Math.round(s.otd*100)}%</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex items-center gap-4 text-[11px]" style={{color:C.muted}}>
+        <span className="inline-flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full" style={{background:C.deep}}/>Revenue, 7 d</span>
+        <span className="inline-flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full" style={{background:C.warn}}/>Needs attention</span>
+        <span className="ml-auto">Right column: on-time delivery</span>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Activity ----------
+function ActivityCard() {
+  return (
+    <div className="card p-7 h-full">
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="text-[12px]" style={{color:C.muted}}>What changed</div>
+          <div className="mt-1" style={{ fontSize: 22, fontWeight: 500, color: C.ink, letterSpacing:'-0.01em' }}>
+            Since you last looked
+          </div>
+        </div>
+        <button className="pill hairline text-[12px] px-3 py-1.5" style={{color:C.deep}}>All activity</button>
+      </div>
+      <div className="mt-5 relative">
+        <div className="absolute left-[7px] top-1 bottom-1 w-px" style={{ background: 'rgba(189,216,233,0.9)' }}/>
+        <div className="flex flex-col gap-4">
+          {ACTIVITY.map((a,i) => (
+            <div key={i} className="relative pl-7">
+              <span className="absolute left-0 top-1 w-[15px] h-[15px] rounded-full" style={{
+                background: i===0 ? 'rgba(194,65,12,0.15)' : '#fff',
+                boxShadow: `inset 0 0 0 2px ${i===0?C.risk:C.muted}`,
+              }}/>
+              <div className="mono text-[11px]" style={{color:C.muted}}>{a.t}</div>
+              <div className="text-[14px] mt-0.5" style={{color:C.ink}}>
+                <span style={{color:C.deep}}>{a.who}</span> — {a.what}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Ask bar (bottom) ----------
+function AskBar() {
+  const [q, setQ] = useState('');
+  const suggestions = [
+    'Why is on-time delivery slipping in Bandra?',
+    'Which top customers haven\u2019t ordered in 30+ days?',
+    'Compare alteration rate by fabric block',
+  ];
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30" style={{ width: 'min(880px, calc(100vw - 48px))' }}>
+      <div className="card p-2 pl-4 flex items-center gap-2" style={{ boxShadow:'0 8px 24px rgba(0,29,57,0.10)' }}>
+        <I.Sparkle size={18}/>
+        <input
+          value={q} onChange={e=>setQ(e.target.value)}
+          placeholder="Ask the pulse anything — try “show me last week’s alteration drivers”"
+          className="flex-1 bg-transparent outline-none text-[14px] py-2.5"
+          style={{ color: C.ink }}
+        />
+        <span className="pill hairline mono text-[11px] px-2 py-1" style={{color:C.muted}}>⌘ K</span>
+        <button className="btn-primary pill w-9 h-9 inline-flex items-center justify-center">
+          <I.Send size={16}/>
+        </button>
+      </div>
+      <div className="mt-2 flex items-center gap-2 flex-wrap px-1">
+        {suggestions.map(s => (
+          <button key={s} className="pill text-[12px] px-3 py-1.5"
+            style={{ background:'rgba(189,216,233,0.45)', color:C.deep }}>
+            {s}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Top bar ----------
+function TopBar() {
+  return (
+    <div className="flex items-center justify-between px-10 py-5">
+      <div className="flex items-center gap-8">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl inline-flex items-center justify-center text-white" style={{ background: C.ink }}>
+            <I.Shirt size={18}/>
+          </div>
+          <div className="leading-tight">
+            <div className="text-[14px]" style={{color:C.ink, fontWeight:500}}>Bombay Shirt Company</div>
+            <div className="text-[11px]" style={{color:C.muted}}>Internal ops · India</div>
+          </div>
+        </div>
+        <nav className="flex items-center gap-7 text-[14px]" style={{color:C.muted}}>
+          <a className="tab-active inline-flex items-center gap-1.5" style={{color:C.ink}}><I.Pulse size={16}/> Pulse</a>
+          <a className="inline-flex items-center gap-1.5"><I.Grid size={16}/> Modules</a>
+          <a className="inline-flex items-center gap-1.5"><I.Canvas size={16}/> Canvas</a>
+          <a className="inline-flex items-center gap-1.5"><I.Repeat size={16}/> Playbooks</a>
+        </nav>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="hairline pill flex items-center gap-2 pl-3 pr-2 py-1.5 text-[13px]" style={{color:C.muted}}>
+          <I.Search size={16}/>
+          <span className="hidden md:inline">Search orders, customers, fabrics</span>
+          <span className="pill mono text-[10px] px-1.5 py-0.5 ml-2" style={{background:'rgba(189,216,233,0.45)'}}>⌘ K</span>
+        </div>
+        <button className="pill hairline w-9 h-9 inline-flex items-center justify-center" style={{color:C.deep}}>
+          <I.Calendar size={16}/>
+        </button>
+        <button className="pill hairline w-9 h-9 inline-flex items-center justify-center relative" style={{color:C.deep}}>
+          <I.Bell size={16}/>
+          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full" style={{ background: C.risk }}/>
+        </button>
+        <div className="flex items-center gap-2 ml-1 pl-2">
+          <div className="w-9 h-9 rounded-full inline-flex items-center justify-center text-white text-[12px]"
+            style={{ background:C.deep, fontWeight:500 }}>AK</div>
+          <div className="leading-tight hidden md:block">
+            <div className="text-[13px]" style={{color:C.ink}}>Akash Kanjilal</div>
+            <div className="text-[11px]" style={{color:C.muted}}>CEO</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Greeting header ----------
+function Greeting() {
+  return (
+    <div className="px-10 pt-2 pb-6 flex items-end justify-between">
+      <div>
+        <div className="text-[12px]" style={{color:C.muted}}>Monday pulse · {today} · 09:14 IST</div>
+        <div className="mt-2" style={{ fontSize: 32, fontWeight: 600, color: C.ink, letterSpacing:'-0.02em', lineHeight: 1.15 }}>
+          Good morning, Akash. <span style={{color:C.muted, fontWeight:500}}>Three things to know before standup.</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="pill hairline flex items-center text-[13px]" style={{color:C.deep}}>
+          <button className="px-3 py-1.5 pill" style={{background:'rgba(189,216,233,0.5)'}}>This week</button>
+          <button className="px-3 py-1.5">This month</button>
+          <button className="px-3 py-1.5">Quarter</button>
+        </div>
+        <button className="btn-ghost pill px-4 py-2 text-[13px] inline-flex items-center gap-1.5">
+          <I.Plus size={14}/> Pin to canvas
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- App ----------
+function App() {
+  const [activeKpi, setActiveKpi] = useState('fit');
+  return (
+    <div className="min-h-screen pb-32" style={{ background: C.bg }}>
+      <TopBar/>
+      <div className="mx-10 hairline" style={{ borderTop:'1px solid rgba(189,216,233,0.6)', borderLeft:0, borderRight:0, borderBottom:0 }}/>
+      <Greeting/>
+
+      <main className="px-10 flex flex-col gap-5">
+        {/* Row 1: 3 KPIs + 1 anomaly */}
+        <section className="grid grid-cols-12 gap-5">
+          <div className="col-span-3"><KpiCard k={KPIS[0]} active={activeKpi==='rev'} onClick={()=>setActiveKpi('rev')}/></div>
+          <div className="col-span-3"><KpiCard k={KPIS[1]} active={activeKpi==='fit'} onClick={()=>setActiveKpi('fit')}/></div>
+          <div className="col-span-3"><KpiCard k={KPIS[2]} active={activeKpi==='otd'} onClick={()=>setActiveKpi('otd')}/></div>
+          <div className="col-span-3"><MiniAnomalyTeaser/></div>
+        </section>
+
+        {/* Row 2: Anomaly hero, full width */}
+        <section>
+          <AnomalyCard/>
+        </section>
+
+        {/* Row 3: Pipeline */}
+        <section><PipelineCard/></section>
+
+        {/* Row 4: Customers + Stores + Activity */}
+        <section className="grid grid-cols-12 gap-5">
+          <div className="col-span-5"><CustomersCard/></div>
+          <div className="col-span-4"><StoresCard/></div>
+          <div className="col-span-3"><ActivityCard/></div>
+        </section>
+
+        <FooterMeta/>
+      </main>
+
+      <AskBar/>
+    </div>
+  );
+}
+
+function MiniAnomalyTeaser() {
+  return (
+    <div className="card p-7 h-full flex flex-col" style={{ minHeight: 232, background: 'linear-gradient(180deg, #fff 0%, rgba(189,216,233,0.25) 100%)' }}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex w-2 h-2 rounded-full pulse-dot" style={{background:C.risk}}/>
+          <span className="text-[12px]" style={{color:C.risk}}>1 anomaly needs you</span>
+        </div>
+        <span className="mono text-[11px]" style={{color:C.muted}}>06:14</span>
+      </div>
+      <div className="mt-4" style={{ fontSize: 20, fontWeight: 500, color: C.ink, letterSpacing:'-0.01em', lineHeight: 1.25 }}>
+        Trouser alterations are climbing.
+      </div>
+      <div className="text-[13px] mt-1.5" style={{color:C.deep, lineHeight:1.5}}>
+        Slim-fit cotton block at Andheri, since the 4 May batch.
+      </div>
+      <div className="mt-auto pt-5 flex items-center justify-between">
+        <div>
+          <div className="text-[11px]" style={{color:C.muted}}>Margin at risk</div>
+          <div className="mono tnum text-[15px]" style={{color:C.ink, fontWeight:500}}>₹4,12,500</div>
+        </div>
+        <button className="pill px-3 py-1.5 text-[12px]" style={{background:C.ink, color:'#fff'}}>Look in</button>
+      </div>
+    </div>
+  );
+}
+
+function FooterMeta() {
+  return (
+    <div className="mt-3 mb-2 flex items-center justify-between text-[12px]" style={{color:C.muted}}>
+      <div>Data sources: Shopify · Microsoft Navision · WhatsApp Business · FitSmart · last sync 09:11 IST</div>
+      <div className="flex items-center gap-2">
+        <span className="inline-flex w-1.5 h-1.5 rounded-full" style={{background:C.ok}}/>
+        <span>All feeds healthy</span>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
